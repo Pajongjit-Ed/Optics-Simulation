@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Optics Simulation - สอวน. ฟิสิกส์ (True Lens Geometry)</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Sarabun', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; padding: 20px; background-color: #f4f7f6; color: #333; }
+        h1 { text-align: center; color: #1a365d; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #4a5568; font-size: 0.9em; margin-bottom: 20px; }
+        
+        .container { display: flex; flex-direction: column; gap: 20px; max-width: 1280px; margin: 0 auto; }
+        
+        .canvas-container { 
+            background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            padding: 10px; overflow: hidden; text-align: center; position: relative;
+        }
+        canvas { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 8px; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+
+        .canvas-overlay {
+            position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 10;
+        }
+        .btn-overlay {
+            background: #3182ce; color: white; border: none; padding: 8px 12px; border-radius: 6px;
+            font-weight: bold; font-size: 0.85em; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+        }
+        .btn-overlay:hover { background: #2b6cb0; }
+
+        .controls { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 15px; 
+        }
+        .card { 
+            background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
+            border-top: 4px solid #3182ce;
+        }
+        .card-header { font-weight: bold; margin-bottom: 12px; color: #2b6cb0; display: flex; justify-content: space-between; align-items: center;}
+        
+        .control-group { margin-bottom: 10px; }
+        .control-group label { display: block; font-size: 0.85em; font-weight: bold; margin-bottom: 4px; color: #4a5568; }
+        .input-row { display: flex; align-items: center; gap: 8px; }
+        .input-row input[type=range] { flex: 1; }
+        .input-row input[type=number] { width: 75px; padding: 4px 6px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center; font-weight: bold; color: #2d3748; }
+        .control-group select { width: 100%; padding: 6px; border-radius: 4px; border: 1px solid #cbd5e0; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 0.88em; font-weight: bold; color: #2d3748; cursor: pointer; margin-top: 4px; }
+
+        .results { 
+            background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
+        }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .results-header h3 { margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+        th { background-color: #ebf8ff; color: #2c5282; }
+    </style>
+</head>
+<body>
+
+    <h1>ระบบจำลองแสงเรขาคณิต (Optics Simulator)</h1>
+    <div class="subtitle">ระบบจำลองรูปทรงเลนส์และกระจกตามรัศมีความโค้งจริง (True Lens Geometry) - สอวน. ฟิสิกส์</div>
+
+    <div class="container">
+        <!-- Canvas Container -->
+        <div class="canvas-container">
+            <div class="canvas-overlay">
+                <button class="btn-overlay" onclick="autoFitView()">🔄 รีเซ็ตมุมมองพอดีจอ (Reset View)</button>
+            </div>
+            <canvas id="opticsCanvas" width="1200" height="500"></canvas>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <!-- Object Controls -->
+            <div class="card" style="border-top-color: #dd6b20;">
+                <div class="card-header">📍 วัตถุ (Object) & การตั้งค่าระบบ</div>
+                <div class="control-group">
+                    <label>ตำแหน่งวัตถุ X (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="objX_range" min="-600" max="600" value="-200" step="1">
+                        <input type="number" id="objX_num" value="200">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>ความสูงวัตถุ H (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="objH_range" min="-120" max="120" value="60" step="1">
+                        <input type="number" id="objH_num" value="60">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>จำนวนอุปกรณ์ทางแสง:</label>
+                    <select id="numElements">
+                        <option value="1">1 อุปกรณ์</option>
+                        <option value="2" selected>2 อุปกรณ์</option>
+                        <option value="3">3 อุปกรณ์</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="showRays" checked> 💡 แสดงเส้นทางเดินแสง (Ray Tracing)
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="useCartesian" checked> 📐 แสดงเครื่องหมาย (+/-) ตามมาตรฐาน Cartesian
+                    </label>
+                </div>
+            </div>
+
+            <!-- Element 1 -->
+            <div class="card" id="cardEl1" style="border-top-color: #2b6cb0;">
+                <div class="card-header" id="header1" style="color: #2b6cb0;">🔍 1: อุปกรณ์ที่ 1</div>
+                <div class="control-group">
+                    <label>ชนิดอุปกรณ์:</label>
+                    <select id="type1">
+                        <option value="convex_lens" selected>เลนส์นูน (Convex Lens)</option>
+                        <option value="concave_lens">เลนส์เว้า (Concave Lens)</option>
+                        <option value="concave_mirror">กระจกเว้า (Concave Mirror)</option>
+                        <option value="convex_mirror">กระจกนูน (Convex Mirror)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>ตำแหน่ง X (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="x1_range" min="-300" max="500" value="0">
+                        <input type="number" id="x1_num" value="0">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>ระยะโฟกัส |f| (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="f1_range" min="5" max="300" value="80">
+                        <input type="number" id="f1_num" value="80">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>รัศมีความโค้ง |R| (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="r1_range" min="10" max="600" value="160">
+                        <input type="number" id="r1_num" value="160">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Element 2 -->
+            <div class="card" id="cardEl2" style="border-top-color: #d69e2e;">
+                <div class="card-header" id="header2" style="color: #d69e2e;">🔍 2: อุปกรณ์ที่ 2</div>
+                <div class="control-group">
+                    <label>ชนิดอุปกรณ์:</label>
+                    <select id="type2">
+                        <option value="convex_lens" selected>เลนส์นูน (Convex Lens)</option>
+                        <option value="concave_lens">เลนส์เว้า (Concave Lens)</option>
+                        <option value="concave_mirror">กระจกเว้า (Concave Mirror)</option>
+                        <option value="convex_mirror">กระจกนูน (Convex Mirror)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>ตำแหน่ง X (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="x2_range" min="-200" max="800" value="350">
+                        <input type="number" id="x2_num" value="350">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>ระยะโฟกัส |f| (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="f2_range" min="5" max="300" value="60">
+                        <input type="number" id="f2_num" value="60">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>รัศมีความโค้ง |R| (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="r2_range" min="10" max="600" value="120">
+                        <input type="number" id="r2_num" value="120">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Element 3 -->
+            <div class="card" id="cardEl3" style="display:none; border-top-color: #805ad5;">
+                <div class="card-header" id="header3" style="color: #805ad5;">🔍 3: อุปกรณ์ที่ 3</div>
+                <div class="control-group">
+                    <label>ชนิดอุปกรณ์:</label>
+                    <select id="type3">
+                        <option value="convex_lens">เลนส์นูน (Convex Lens)</option>
+                        <option value="concave_lens">เลนส์เว้า (Concave Lens)</option>
+                        <option value="concave_mirror">กระจกเว้า (Concave Mirror)</option>
+                        <option value="convex_mirror">กระจกนูน (Convex Mirror)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>ตำแหน่ง X (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="x3_range" min="0" max="1200" value="650">
+                        <input type="number" id="x3_num" value="650">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>ระยะโฟกัส |f| (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="f3_range" min="5" max="300" value="50">
+                        <input type="number" id="f3_num" value="50">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label>รัศมีความโค้ง |R| (cm):</label>
+                    <div class="input-row">
+                        <input type="range" id="r3_range" min="10" max="600" value="100">
+                        <input type="number" id="r3_num" value="100">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="results">
+            <div class="results-header">
+                <h3>📊 ผลการคำนวณทางทัศนศาสตร์</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>อุปกรณ์</th>
+                        <th>ระยะวัตถุ (s)</th>
+                        <th>ระยะโฟกัส (f)</th>
+                        <th>ระยะภาพ (s')</th>
+                        <th>กำลังขยาย (m)</th>
+                        <th>ลักษณะภาพ</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                </tbody>
+            </table>
+            <p id="totalMag" style="text-align: right; font-weight: bold; color: #2b6cb0; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('opticsCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let numElements = 2;
+
+        // Transform States
+        let scale = 1.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let dragTarget = null;
+        let startX, startY;
+
+        const typeMap = {
+            'convex_lens': 'เลนส์นูน',
+            'concave_lens': 'เลนส์เว้า',
+            'concave_mirror': 'กระจกเว้า',
+            'convex_mirror': 'กระจกนูน'
+        };
+
+        const elementColors = [
+            '#2b6cb0', // Element 1: Deep Blue
+            '#d69e2e', // Element 2: Amber / Gold
+            '#805ad5'  // Element 3: Purple
+        ];
+
+        function bindPair(id) {
+            const range = document.getElementById(`${id}_range`);
+            const num = document.getElementById(`${id}_num`);
+            if (!range || !num) return;
+
+            range.addEventListener('input', () => {
+                let val = parseFloat(range.value);
+                if (id === 'objX') {
+                    num.value = Math.abs(val);
+                } else {
+                    num.value = val;
+                }
+                
+                if (id.startsWith('f')) {
+                    const idx = id[1];
+                    document.getElementById(`r${idx}_range`).value = val * 2;
+                    document.getElementById(`r${idx}_num`).value = val * 2;
+                } else if (id.startsWith('r')) {
+                    const idx = id[1];
+                    document.getElementById(`f${idx}_range`).value = Math.round(val / 2);
+                    document.getElementById(`f${idx}_num`).value = Math.round(val / 2);
+                }
+                updateUI();
+            });
+
+            num.addEventListener('input', () => {
+                let val = parseFloat(num.value) || 0;
+                if (id === 'objX') {
+                    val = Math.abs(val);
+                    range.value = -val;
+                } else {
+                    range.value = val;
+                }
+
+                if (id.startsWith('f')) {
+                    const idx = id[1];
+                    document.getElementById(`r${idx}_range`).value = val * 2;
+                    document.getElementById(`r${idx}_num`).value = val * 2;
+                } else if (id.startsWith('r')) {
+                    const idx = id[1];
+                    document.getElementById(`f${idx}_range`).value = Math.round(val / 2);
+                    document.getElementById(`f${idx}_num`).value = Math.round(val / 2);
+                }
+                updateUI();
+            });
+        }
+
+        ['objX', 'objH', 'x1', 'f1', 'r1', 'x2', 'f2', 'r2', 'x3', 'f3', 'r3'].forEach(bindPair);
+
+        function getObjX() { return parseFloat(document.getElementById('objX_range').value) || -200; }
+        function getVal(id) { return parseFloat(document.getElementById(`${id}_num`).value) || 0; }
+
+        function updateUI(autoFitNeeded = false) {
+            numElements = parseInt(document.getElementById('numElements').value);
+            document.getElementById('cardEl2').style.display = numElements >= 2 ? 'block' : 'none';
+            document.getElementById('cardEl3').style.display = numElements >= 3 ? 'block' : 'none';
+
+            for(let i=1; i<=3; i++) {
+                const color = elementColors[i-1];
+                document.getElementById(`cardEl${i}`).style.borderTopColor = color;
+                document.getElementById(`header${i}`).style.color = color;
+            }
+
+            if (autoFitNeeded) {
+                autoFitView();
+            } else {
+                draw();
+            }
+        }
+
+        function autoFitView() {
+            const { elements, results } = calculateOptics();
+            
+            let minX = getObjX();
+            let maxX = minX;
+            let maxY = Math.abs(getVal('objH'));
+
+            elements.forEach(el => {
+                minX = Math.min(minX, el.x - el.r_val);
+                maxX = Math.max(maxX, el.x + el.r_val);
+                maxY = Math.max(maxY, el.r_val);
+            });
+
+            results.forEach(res => {
+                if (isFinite(res.imgX)) {
+                    minX = Math.min(minX, res.imgX);
+                    maxX = Math.max(maxX, res.imgX);
+                }
+                if (isFinite(res.imgH)) {
+                    maxY = Math.max(maxY, Math.abs(res.imgH));
+                }
+            });
+
+            const rangeX = Math.max(maxX - minX, 180);
+            const rangeY = Math.max(maxY * 2.2, 120);
+
+            const scaleX = (canvas.width * 0.78) / rangeX;
+            const scaleY = (canvas.height * 0.7) / rangeY;
+            scale = Math.min(scaleX, scaleY);
+
+            const centerX = (minX + maxX) / 2;
+            offsetX = canvas.width / 2 - centerX * scale;
+            offsetY = canvas.height / 2;
+
+            draw();
+        }
+
+        // Interactive Canvas Drag & Drop System
+        canvas.addEventListener('mousedown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+
+            const objX = getObjX();
+            if (Math.abs(mouseX - (objX * scale + offsetX)) < 20) {
+                isDragging = true;
+                dragTarget = 'object';
+                return;
+            }
+
+            for (let i = 1; i <= numElements; i++) {
+                const elX = getVal(`x${i}`);
+                if (Math.abs(mouseX - (elX * scale + offsetX)) < 20) {
+                    isDragging = true;
+                    dragTarget = `el${i}`;
+                    return;
+                }
+            }
+
+            isDragging = true;
+            dragTarget = 'pan';
+            startX = e.clientX - offsetX;
+            startY = e.clientY - offsetY;
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const worldX = Math.round((mouseX - offsetX) / scale);
+
+            if (dragTarget === 'object') {
+                const range = document.getElementById('objX_range');
+                const num = document.getElementById('objX_num');
+                range.value = worldX;
+                num.value = Math.abs(worldX);
+                updateUI();
+            } else if (dragTarget && dragTarget.startsWith('el')) {
+                const idx = dragTarget[2];
+                const range = document.getElementById(`x${idx}_range`);
+                const num = document.getElementById(`x${idx}_num`);
+                range.value = worldX;
+                num.value = worldX;
+                updateUI();
+            } else if (dragTarget === 'pan') {
+                offsetX = e.clientX - startX;
+                offsetY = e.clientY - startY;
+                draw();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragTarget = null;
+        });
+
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+            const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+
+            offsetX = mouseX - (mouseX - offsetX) * zoomFactor;
+            offsetY = mouseY - (mouseY - offsetY) * zoomFactor;
+            scale *= zoomFactor;
+
+            draw();
+        }, { passive: false });
+
+        document.querySelectorAll('select, input[type=checkbox]').forEach(el => {
+            el.addEventListener('change', () => {
+                const autoFit = (el.id === 'numElements');
+                updateUI(autoFit);
+            });
+        });
+
+        function drawGrid() {
+            const targetPx = 100;
+            const rawUnit = targetPx / scale;
+            const basePower = Math.pow(10, Math.floor(Math.log10(rawUnit)));
+            const normalized = rawUnit / basePower;
+
+            let majorUnit = basePower;
+            if (normalized > 5) majorUnit = basePower * 10;
+            else if (normalized > 2) majorUnit = basePower * 5;
+            else if (normalized > 1) majorUnit = basePower * 2;
+
+            const minorUnit = majorUnit / 5;
+            const majorPx = majorUnit * scale;
+            const minorPx = minorUnit * scale;
+
+            ctx.save();
+            const showMinor = scale >= 1.2;
+
+            if (showMinor) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#f0f4f8';
+                ctx.lineWidth = 1;
+                for (let x = offsetX % minorPx; x < canvas.width; x += minorPx) {
+                    ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+                }
+                for (let y = offsetY % minorPx; y < canvas.height; y += minorPx) {
+                    ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+                }
+                ctx.stroke();
+            }
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            for (let x = offsetX % majorPx; x < canvas.width; x += majorPx) {
+                ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+            }
+            for (let y = offsetY % majorPx; y < canvas.height; y += majorPx) {
+                ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 2;
+            ctx.moveTo(0, offsetY);
+            ctx.lineTo(canvas.width, offsetY);
+            ctx.stroke();
+
+            const fontSize = 11;
+            ctx.font = `${fontSize}px Sarabun`;
+            ctx.textAlign = 'center';
+
+            for (let x = offsetX % minorPx; x < canvas.width; x += minorPx) {
+                const worldX = Math.round((x - offsetX) / scale);
+                const isMajor = Math.abs((x - offsetX) % majorPx) < 0.5 || Math.abs((x - offsetX) % majorPx - majorPx) < 0.5;
+
+                if (!isMajor && !showMinor) continue;
+
+                ctx.beginPath();
+                ctx.moveTo(x, offsetY - (isMajor ? 6 : 3));
+                ctx.lineTo(x, offsetY + (isMajor ? 6 : 3));
+                ctx.strokeStyle = isMajor ? '#2d3748' : '#cbd5e0';
+                ctx.stroke();
+
+                if (isMajor) {
+                    ctx.fillStyle = '#2d3748';
+                    ctx.font = `bold ${fontSize}px Sarabun`;
+                    ctx.fillText(`${Math.abs(worldX)}`, x, offsetY + 18);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function drawArrow(worldX, worldY, height, color, label, isDashed = false) {
+            if (!isFinite(worldX) || !isFinite(height)) return;
+
+            const screenX = worldX * scale + offsetX;
+            const screenY = offsetY;
+            const screenHeight = height * scale;
+            const arrowTopY = screenY - screenHeight;
+
+            const fontSize = 12;
+            const headLength = Math.min(Math.abs(screenHeight) * 0.3, 10);
+            const headWidth = 5;
+
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 2.5;
+
+            if (isDashed) ctx.setLineDash([4, 4]);
+
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(screenX, arrowTopY);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            const direction = height >= 0 ? 1 : -1;
+
+            ctx.beginPath();
+            ctx.moveTo(screenX, arrowTopY);
+            ctx.lineTo(screenX - headWidth, arrowTopY + direction * headLength);
+            ctx.lineTo(screenX + headWidth, arrowTopY + direction * headLength);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.font = `bold ${fontSize}px Sarabun`;
+            ctx.textAlign = 'center';
+            const textY = height >= 0 ? arrowTopY - 8 : arrowTopY + fontSize + 8;
+            ctx.fillText(label, screenX, textY);
+
+            ctx.restore();
+        }
+
+        // True Circular Arc Lens Geometry
+        function drawLensOrMirror(el, index) {
+            ctx.save();
+            const color = elementColors[index];
+            const screenX = el.x * scale + offsetX;
+            const R_px = el.r_val * scale;
+
+            // Aperture height proportional to R (capped at 0.95R to remain mathematically valid)
+            const hHalf = Math.min(R_px * 0.95, 200 * scale);
+            const height = hHalf * 2;
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color + '22';
+
+            // Center Axis (Dashed line)
+            ctx.beginPath();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#a0aec0';
+            ctx.moveTo(screenX, offsetY - hHalf - 10);
+            ctx.lineTo(screenX, offsetY + hHalf + 10);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.strokeStyle = color;
+
+            // Calculate exact center position C of curvature circle: C_x = sqrt(R^2 - (h/2)^2)
+            const d = Math.sqrt(R_px * R_px - hHalf * hHalf);
+            const theta = Math.asin(hHalf / R_px); // Half-aperture angle
+
+            if (el.type === 'convex_lens') {
+                // Bi-convex Lens: Intersecting two circular arcs with radius R
+                ctx.beginPath();
+                // Front surface (Arc from center C1 at screenX - d)
+                ctx.arc(screenX - d, offsetY, R_px, -theta, theta, false);
+                // Back surface (Arc from center C2 at screenX + d)
+                ctx.arc(screenX + d, offsetY, R_px, Math.PI - theta, Math.PI + theta, false);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+            } else if (el.type === 'concave_lens') {
+                // Bi-concave Lens: Two outward arcs connected by flat top and bottom edges
+                const edgeWidth = Math.max(4 * scale, (R_px - d) + 4 * scale);
+                ctx.beginPath();
+                // Top edge
+                ctx.moveTo(screenX - edgeWidth, offsetY - hHalf);
+                ctx.lineTo(screenX + edgeWidth, offsetY - hHalf);
+                // Right concave surface (Arc from C2 at screenX + edgeWidth + d)
+                ctx.arc(screenX + edgeWidth + d, offsetY, R_px, Math.PI + theta, Math.PI - theta, true);
+                // Bottom edge
+                ctx.lineTo(screenX - edgeWidth, offsetY + hHalf);
+                // Left concave surface (Arc from C1 at screenX - edgeWidth - d)
+                ctx.arc(screenX - edgeWidth - d, offsetY, R_px, theta, -theta, true);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+            } else if (el.type === 'concave_mirror' || el.type === 'convex_mirror') {
+                // Spherical Mirror Surface
+                const dir = (el.type === 'concave_mirror') ? 1 : -1;
+                const C_x = screenX - dir * d;
+                
+                ctx.beginPath();
+                if (dir === 1) {
+                    ctx.arc(C_x, offsetY, R_px, -theta, theta, false);
+                } else {
+                    ctx.arc(C_x, offsetY, R_px, Math.PI - theta, Math.PI + theta, false);
+                }
+                ctx.stroke();
+            }
+
+            // Title Above Device
+            const fontSize = 12;
+            ctx.font = `bold ${fontSize}px Sarabun`;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.fillText(`${index + 1}: ${el.typeName}`, screenX, offsetY - hHalf - 12);
+
+            // Subscript Focus Points
+            const fPx = el.f_signed * scale;
+            ctx.fillStyle = color;
+            
+            [screenX - Math.abs(fPx), screenX + Math.abs(fPx)].forEach((fpX) => {
+                ctx.beginPath();
+                ctx.arc(fpX, offsetY, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.font = `bold ${fontSize}px Sarabun`;
+                ctx.fillText(`F`, fpX - 4, offsetY + fontSize + 8);
+                ctx.font = `bold ${fontSize * 0.75}px Sarabun`;
+                ctx.fillText(`${index + 1}`, fpX + 4, offsetY + fontSize + 12);
+            });
+
+            ctx.restore();
+        }
+
+        function drawRayTracing(srcX, srcH, el, res) {
+            if (!document.getElementById('showRays').checked) return;
+
+            const screenSrcX = srcX * scale + offsetX;
+            const screenSrcY = offsetY - srcH * scale;
+            const screenElX = el.x * scale + offsetX;
+            const screenImgX = res.imgX * scale + offsetX;
+            const screenImgY = offsetY - res.imgH * scale;
+
+            const isMirror = el.type.includes('mirror');
+
+            ctx.save();
+            ctx.lineWidth = 1.5;
+
+            // 1. Parallel Ray (Red)
+            ctx.strokeStyle = '#e53e3e';
+            ctx.beginPath();
+            ctx.moveTo(screenSrcX, screenSrcY);
+            ctx.lineTo(screenElX, screenSrcY);
+
+            if (!isMirror) {
+                ctx.lineTo(screenImgX, screenImgY);
+                ctx.stroke();
+            } else {
+                const reflectEndX = screenElX - (screenImgX - screenElX);
+                ctx.lineTo(reflectEndX, screenImgY);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.setLineDash([4, 4]);
+                ctx.moveTo(screenElX, screenSrcY);
+                ctx.lineTo(screenImgX, screenImgY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // 2. Center Ray (Blue)
+            ctx.strokeStyle = '#3182ce';
+            ctx.beginPath();
+            ctx.moveTo(screenSrcX, screenSrcY);
+            ctx.lineTo(screenElX, offsetY);
+
+            if (!isMirror) {
+                ctx.lineTo(screenImgX, screenImgY);
+                ctx.stroke();
+            } else {
+                const reflectEndX = screenElX - (screenImgX - screenElX);
+                ctx.lineTo(reflectEndX, screenImgY);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.setLineDash([4, 4]);
+                ctx.moveTo(screenElX, offsetY);
+                ctx.lineTo(screenImgX, screenImgY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+        }
+
+        function calculateOptics() {
+            const elements = [];
+            for (let i = 1; i <= numElements; i++) {
+                const type = document.getElementById(`type${i}`).value;
+                let f = getVal(`f${i}`);
+                let r = getVal(`r${i}`);
+                const x = getVal(`x${i}`);
+
+                let f_signed = f;
+                if (type === 'concave_lens' || type === 'convex_mirror') {
+                    f_signed = -f;
+                }
+
+                elements.push({ type, typeName: typeMap[type], f_val: f, r_val: r, f_signed, x });
+            }
+
+            let currentObj = {
+                x: getObjX(),
+                h: getVal('objH')
+            };
+
+            const results = [];
+            let M_total = 1;
+
+            elements.forEach((el, index) => {
+                let s = el.x - currentObj.x;
+                let s_prime = (s * el.f_signed) / (s - el.f_signed);
+                let m = -s_prime / s;
+                let imgH = currentObj.h * m;
+                let imgX = el.type.includes('mirror') ? (el.x - s_prime) : (el.x + s_prime);
+
+                let isReal = s_prime > 0;
+                let isUpright = m > 0;
+
+                let sizeDesc = 'ขนาดเท่ากับวัตถุ';
+                if (Math.abs(m) > 1.001) sizeDesc = 'ขนาดใหญ่กว่าวัตถุ';
+                else if (Math.abs(m) < 0.999) sizeDesc = 'ขนาดเล็กกว่าวัตถุ';
+
+                results.push({
+                    elementNum: index + 1,
+                    typeName: el.typeName,
+                    s_raw: s,
+                    f_raw: el.f_signed,
+                    s_prime_raw: s_prime,
+                    m_raw: m,
+                    s: Math.abs(s),
+                    f: Math.abs(el.f_signed),
+                    s_prime: Math.abs(s_prime),
+                    m: Math.abs(m),
+                    imgX: imgX,
+                    imgH: imgH,
+                    isReal: isReal,
+                    typeStr: `${isReal ? 'ภาพจริง' : 'ภาพเสมือน'} / ${isUpright ? 'หัวตั้ง' : 'หัวกลับ'} / ${sizeDesc}`,
+                    srcX: currentObj.x,
+                    srcH: currentObj.h
+                });
+
+                M_total *= m;
+                currentObj = { x: imgX, h: imgH };
+            });
+
+            return { elements, results, M_total };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid();
+
+            const { elements, results, M_total } = calculateOptics();
+
+            const initObjX = getObjX();
+            const initObjH = getVal('objH');
+            drawArrow(initObjX, offsetY, initObjH, '#dd6b20', 'วัตถุ (Object)');
+
+            elements.forEach((el, index) => {
+                drawLensOrMirror(el, index);
+            });
+
+            results.forEach((res, index) => {
+                drawRayTracing(res.srcX, res.srcH, elements[index], res);
+
+                const isFinal = (index === results.length - 1);
+                const color = isFinal ? '#e53e3e' : elementColors[index];
+                const label = isFinal ? `ภาพสุดท้าย` : `ภาพที่ ${index + 1}`;
+                
+                drawArrow(res.imgX, offsetY, res.imgH, color, label, !res.isReal);
+            });
+
+            const useCartesian = document.getElementById('useCartesian').checked;
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = '';
+
+            results.forEach(r => {
+                const color = elementColors[r.elementNum - 1];
+                const sDisp = useCartesian ? r.s_raw.toFixed(1) : r.s.toFixed(1);
+                const fDisp = useCartesian ? r.f_raw.toFixed(1) : r.f.toFixed(1);
+                const spDisp = isFinite(r.s_prime_raw) ? (useCartesian ? r.s_prime_raw.toFixed(1) : r.s_prime.toFixed(1)) : '∞';
+                const mDisp = isFinite(r.m_raw) ? (useCartesian ? r.m_raw.toFixed(2) : r.m.toFixed(2)) : '∞';
+
+                const row = `<tr>
+                    <td style="color:${color}; font-weight:bold;">${r.elementNum}: ${r.typeName}</td>
+                    <td>${sDisp} cm</td>
+                    <td>${fDisp} cm</td>
+                    <td>${spDisp} ${spDisp !== '∞' ? 'cm' : ''}</td>
+                    <td>${mDisp}</td>
+                    <td>${r.typeStr}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+
+            document.getElementById('totalMag').innerText = `กำลังขยายรวมของระบบ (M_total) = ${isFinite(M_total) ? (useCartesian ? M_total.toFixed(2) : Math.abs(M_total).toFixed(2)) : '∞'} เท่า`;
+        }
+
+        updateUI(true);
+    </script>
+</body>
+</html>
