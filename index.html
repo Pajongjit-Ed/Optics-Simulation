@@ -225,6 +225,7 @@
                         <th>ระยะวัตถุ (s)</th>
                         <th>ระยะโฟกัส (f)</th>
                         <th>ระยะภาพ (s')</th>
+                        <th>ขนาดภาพ (y')</th>
                         <th>กำลังขยาย (m)</th>
                         <th>ลักษณะภาพ</th>
                     </tr>
@@ -788,10 +789,12 @@
                     f_raw: el.f_signed,
                     s_prime_raw: s_prime,
                     m_raw: m,
+                    imgH_raw: imgH,
                     s: Math.abs(s),
                     f: Math.abs(el.f_signed),
                     s_prime: Math.abs(s_prime),
                     m: Math.abs(m),
+                    imgH_abs: Math.abs(imgH),
                     imgX: imgX,
                     imgH: imgH,
                     isReal: isReal,
@@ -841,6 +844,7 @@
                 const sDisp = useCartesian ? r.s_raw.toFixed(1) : r.s.toFixed(1);
                 const fDisp = useCartesian ? r.f_raw.toFixed(1) : r.f.toFixed(1);
                 const spDisp = isFinite(r.s_prime_raw) ? (useCartesian ? r.s_prime_raw.toFixed(1) : r.s_prime.toFixed(1)) : '∞';
+                const ypDisp = isFinite(r.imgH_raw) ? (useCartesian ? r.imgH_raw.toFixed(1) : r.imgH_abs.toFixed(1)) : '∞';
                 const mDisp = isFinite(r.m_raw) ? (useCartesian ? r.m_raw.toFixed(2) : r.m.toFixed(2)) : '∞';
 
                 const row = `<tr>
@@ -848,6 +852,7 @@
                     <td>${sDisp} cm</td>
                     <td>${fDisp} cm</td>
                     <td>${spDisp} ${spDisp !== '∞' ? 'cm' : ''}</td>
+                    <td>${ypDisp} ${ypDisp !== '∞' ? 'cm' : ''}</td>
                     <td>${mDisp}</td>
                     <td>${r.typeStr}</td>
                 </tr>`;
